@@ -3,6 +3,7 @@ import { AttachmentCsvStrategy } from './strategies/AttachmentCsvStrategy';
 import { AttachmentJsonStrategy } from './strategies/AttachmentJsonStrategy';
 import { TableAggregationStrategy } from './strategies/TableAggregationStrategy';
 import { HeuristicMathStrategy } from './strategies/HeuristicMathStrategy';
+import { LinkedPageScrapeStrategy } from './strategies/LinkedPageScrapeStrategy';
 import { LlmStrategy } from './strategies/LlmStrategy';
 import { FallbackStrategy } from './strategies/FallbackStrategy';
 
@@ -12,6 +13,7 @@ export class StrategyRegistry {
     new AttachmentJsonStrategy(),
     new TableAggregationStrategy(),
     new HeuristicMathStrategy(),
+    new LinkedPageScrapeStrategy(),
     new LlmStrategy(),
     new FallbackStrategy()
   ];

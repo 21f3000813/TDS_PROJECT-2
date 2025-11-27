@@ -21,6 +21,28 @@ const toNumbers = (matrix: string[][]): number[] => {
   return values;
 };
 
+const extractCutoff = (text: string): number | null => {
+  const match = text.match(/cutoff[^\d]*(\d+(?:\.\d+)?)/i);
+  if (!match) return null;
+  const value = Number(match[1]);
+  return Number.isNaN(value) ? null : value;
+};
+
+const applyCutoff = (values: number[], instructions: string, context: string): { values: number[]; cutoff?: number; mode?: 'gt' | 'lt' } => {
+  const cutoff = extractCutoff(`${instructions}\n${context}`);
+  if (cutoff == null) {
+    return { values };
+  }
+
+  const normalized = instructions.toLowerCase();
+  const prefersBelow = /(less|below|under|smaller)/.test(normalized);
+  const filtered = values.filter((value) => (prefersBelow ? value < cutoff : value > cutoff));
+  if (!filtered.length) {
+    return { values };
+  }
+  return { values: filtered, cutoff, mode: prefersBelow ? 'lt' : 'gt' };
+};
+
 export class AttachmentCsvStrategy implements Strategy {
   public canSolve(snapshot: StrategyContext['snapshot']): boolean {
     return snapshot.attachments.some((attachment) => attachment.endsWith('.csv'));
@@ -34,9 +56,13 @@ export class AttachmentCsvStrategy implements Strategy {
     }
     const csvText = await response.text();
     const matrix = csvToMatrix(csvText);
-    const values = toNumbers(matrix);
-    if (!values.length) {
+    const baseValues = toNumbers(matrix);
+    if (!baseValues.length) {
       throw new Error('No numeric values were extracted from CSV');
+    }
+    const { values, cutoff, mode } = applyCutoff(baseValues, ctx.snapshot.instructions, ctx.snapshot.rawText);
+    if (!values.length) {
+      throw new Error('Cutoff filtering removed all numeric values');
     }
     const lower = ctx.snapshot.instructions.toLowerCase();
     let result: number;
@@ -54,7 +80,9 @@ export class AttachmentCsvStrategy implements Strategy {
       metadata: {
         strategy: 'attachment-csv',
         attachment: csvUrl,
-        rows: matrix.length
+        rows: matrix.length,
+        cutoff,
+        cutoffMode: mode
       }
     };
   }

@@ -39,28 +39,68 @@ export const extractSnapshot = async (page: Page, url: string): Promise<QuizPage
       quizConfig?: { submitUrl?: string };
     };
 
+    const anchorHref = (() => {
+      const anchors = Array.from(document.querySelectorAll('a[href]'));
+      for (const anchor of anchors) {
+        const href = anchor.getAttribute('href');
+        if (href && /submit/i.test(href)) {
+          return href;
+        }
+      }
+      return null;
+    })();
+
+    const textMatch = (() => {
+      const text = document.body?.innerText ?? '';
+      const match = text.match(/https?:\/\/[^\s"']+submit[^\s"']*/i);
+      if (match) return match[0];
+      const relativeMatch = text.match(/\/[\w\-./?=&]*submit[\w\-./?=&]*/i);
+      return relativeMatch ? relativeMatch[0] : null;
+    })();
+
     return (
       pickAttr('[data-submit-url]', 'data-submit-url')
       ?? pickAttr('[data-submit-endpoint]', 'data-submit-endpoint')
       ?? pickAttr('form[action]', 'action')
       ?? globalWindow.submitUrl
       ?? globalWindow.quizConfig?.submitUrl
+      ?? anchorHref
+      ?? textMatch
       ?? null
     );
   });
 
-  if (!submitUrlCandidate) {
-    throw new Error('Cannot locate submit URL on quiz page');
-  }
+  const submitUrl = (() => {
+    if (submitUrlCandidate) {
+      return new URL(submitUrlCandidate, url).toString();
+    }
 
-  const submitUrl = new URL(submitUrlCandidate, url).toString();
+    const textMatches = bodyText.match(/https?:\/\/[^\s"']+/gi) ?? [];
+    const submitMatch = textMatches.find((candidate) => /submit/i.test(candidate));
+    if (submitMatch) {
+      return submitMatch;
+    }
+    const relativeMatch = bodyText.match(/\/[\w\-./?=&]*submit[\w\-./?=&]*/i);
+    if (relativeMatch) {
+      return new URL(relativeMatch[0], url).toString();
+    }
+
+    const firstMatch = textMatches[0];
+    if (firstMatch) {
+      return firstMatch;
+    }
+
+    throw new Error('Cannot locate submit URL on quiz page');
+  })();
 
   const attachments = new Set<string>();
+  const links = new Set<string>();
   $('a[href]').each((index: number, el: DomElement) => {
     const href = $(el).attr('href');
     if (!href) return;
+    const absolute = new URL(href, url).toString();
+    links.add(absolute);
     if (/\.(csv|json|xlsx?|pdf|txt)$/i.test(href)) {
-      const absolute = new URL(href, url).toString();
       attachments.add(absolute);
     }
   });
@@ -95,6 +135,7 @@ export const extractSnapshot = async (page: Page, url: string): Promise<QuizPage
     rawText: normalize(bodyText).slice(0, 5000),
     submitUrl,
     attachments: [...attachments],
+    links: [...links],
     tables,
     textBlocks
   };

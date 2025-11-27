@@ -12,6 +12,7 @@ export interface QuizPageSnapshot {
   rawText: string;
   submitUrl: string;
   attachments: string[];
+  links: string[];
   tables: string[][][];
   textBlocks: string[];
 }
